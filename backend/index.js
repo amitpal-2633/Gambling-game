@@ -167,6 +167,7 @@ app.get("/user/info", authenticateToken, async (req, res) => {
 
 // Select Number
 // Updated Select Number Logic
+// Updated Select Number Logic
 app.post("/user/selectNumber", authenticateToken, async (req, res) => {
   const { number } = req.body;
   if (number < 1 || number > 30)
@@ -185,31 +186,36 @@ app.post("/user/selectNumber", authenticateToken, async (req, res) => {
     user.selectedNumber = number;
     await user.save();
 
-    // Get all users who have selected a number
+    // Fetch all users who have selected a number
     const users = await User.find({ selectedNumber: { $exists: true } });
     const winners = users.filter((u) => u.selectedNumber === admin.number);
     const losers = users.filter((u) => u.selectedNumber !== admin.number);
 
-    // Determine the amount to be added or subtracted
+    // Define balance change amounts
     const winningAmount = 100;
     const losingAmount = -100;
 
-    // Update balances
-    await User.updateMany(
-      { _id: { $in: winners.map((u) => u._id) } },
-      { $inc: { balance: winningAmount } }
-    );
+    const balanceUpdates = {};
+    if (user.selectedNumber === admin.number) {
+      balanceUpdates[user._id] = winningAmount;
+    } else if (user.selectedNumber !== admin.number) {
+      balanceUpdates[user._id] = losingAmount;
+    }
 
-    await User.updateMany(
-      { _id: { $in: losers.map((u) => u._id) } },
-      { $inc: { balance: losingAmount } }
-    );
+    // Apply the balance updates
+    for (const [userId, amount] of Object.entries(balanceUpdates)) {
+      await User.updateOne(
+        { _id: userId },
+        { $inc: { balance: amount } }
+      );
+    }
 
-    res.json({ message: "Number selected and balances updated" });
+    res.json({ message: "Number selected and balance updated" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 
 // Start Server
